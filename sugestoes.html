@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pib Aldmar | Sugestões de Hoje</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        :root {
+            --bg-deep: #080808;
+            --red-vibrant: #FF3131;
+            --white-pure: #FFFFFF;
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            background-color: var(--bg-deep); 
+            color: var(--white-pure); 
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 800;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+        }
+
+        header { margin-bottom: 40px; }
+        header h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -1.5px; }
+        header h1 span { color: var(--red-vibrant); }
+
+        #suggestions-container { display: flex; flex-direction: column; gap: 14px; }
+
+        /* CARD BASE */
+        .suggestion-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(15px);
+        }
+
+        /* ESTILO DO CARD "NOVA" COM FONTE REDUZIDA */
+        .card-new {
+            background: rgba(255, 49, 49, 0.03);
+            border: 1.2px solid rgba(255, 49, 49, 0.25);
+            padding: 30px 24px;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .card-new .main-date {
+            font-size: 1.5rem; /* Reduzido de 2.2rem para 1.5rem */
+            text-shadow: 0 0 15px rgba(255, 49, 49, 0.3);
+        }
+
+        /* SELO NOVA */
+        .badge-new {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--red-vibrant);
+            color: #fff;
+            font-size: 0.55rem;
+            font-weight: 900;
+            padding: 3px 10px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 49, 49, 0.6); }
+            70% { box-shadow: 0 0 0 8px rgba(255, 49, 49, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 49, 49, 0); }
+        }
+
+        /* ELEMENTOS TEXTUAIS CARDS COMUNS */
+        .main-date {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--red-vibrant);
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+
+        .sub-suggestion {
+            font-size: 1rem;
+            font-weight: 400;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        @keyframes reveal {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-msg { text-align: center; padding: 60px 20px; color: var(--red-vibrant); }
+    </style>
+</head>
+<body>
+
+    <main class="container">
+        <a href="index.html" class="back-link"><i class="ph-bold ph-arrow-left"></i> Voltar</a>
+
+        <header>
+            <h1>Sugestões <span>de hoje</span></h1>
+        </header>
+
+        <div id="status" class="status-msg">
+            <i class="ph ph-circle-notch ph-spin" style="font-size: 2rem;"></i>
+        </div>
+
+        <div id="suggestions-container"></div>
+    </main>
+
+    <script>
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSizqPkVTsNhcYVBOOZLtB2DvYCy1BoYvJ7m5JmC1CKYOBnH12hfKfgCy45T3iTAtyy-9ezUaD7zdpf/pub?gid=496723876&single=true&output=csv';
+        const PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(CSV_URL)}`;
+
+        async function fetchSuggestions() {
+            try {
+                const response = await fetch(PROXY);
+                const json = await response.json();
+                let rawData = json.contents;
+
+                if (rawData.includes('base64,')) {
+                    rawData = decodeURIComponent(escape(window.atob(rawData.split('base64,')[1])));
+                }
+
+                const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
+                const delimiter = rows[0].includes(';') ? ';' : ',';
+                const container = document.getElementById('suggestions-container');
+                
+                container.innerHTML = "";
+
+                for (let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].split(delimiter).map(c => c.replace(/"/g, '').trim());
+                    if (cols.length >= 1) {
+                        const dataSugestao = cols[0] || 'Data indefinida';
+                        const tituloSugestao = cols[1] || "";
+                        const isNew = tituloSugestao === "";
+
+                        const card = document.createElement('div');
+                        card.className = `suggestion-card ${isNew ? 'card-new' : ''}`;
+                        card.style.animation = `reveal 0.5s ease forwards ${i * 0.1}s`;
+                        
+                        if (isNew) {
+                            card.innerHTML = `
+                                <span class="badge-new">Nova</span>
+                                <span class="main-date">${dataSugestao}</span>
+                            `;
+                        } else {
+                            card.innerHTML = `
+                                <span class="main-date">${dataSugestao}</span>
+                                <span class="sub-suggestion">${tituloSugestao}</span>
+                            `;
+                        }
+                        
+                        container.appendChild(card);
+                    }
+                }
+                document.getElementById('status').style.display = 'none';
+            } catch (e) {
+                document.getElementById('status').innerHTML = "Erro ao carregar.";
+            }
+        }
+
+        window.onload = fetchSuggestions;
+    </script>
+</body>
+</html>

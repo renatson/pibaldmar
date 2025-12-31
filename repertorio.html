@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pib Aldmar | Nosso Repertório</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        :root {
+            --bg-deep: #080808;
+            --red-vibrant: #FF3131;
+            --white-pure: #FFFFFF;
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            background-color: var(--bg-deep); 
+            color: var(--white-pure); 
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 800;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+        }
+
+        header { margin-bottom: 30px; }
+        header h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -1.5px; line-height: 1; }
+        header h1 span { color: var(--red-vibrant); }
+        
+        .stats { font-size: 0.8rem; color: #555; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .search-container { margin-bottom: 25px; }
+        .search-container input {
+            width: 100%;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            padding: 16px 20px;
+            border-radius: 15px;
+            color: #fff;
+            font-family: inherit;
+            outline: none;
+            transition: 0.3s;
+        }
+        .search-container input:focus { border-color: var(--red-vibrant); background: rgba(255,255,255,0.06); }
+
+        #repertorio-container { display: flex; flex-direction: column; gap: 10px; }
+
+        .music-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 18px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        .music-card:active { transform: scale(0.98); background: rgba(255,255,255,0.08); }
+
+        .music-main {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            max-width: 75%;
+        }
+
+        .music-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--white-pure);
+            letter-spacing: -0.5px;
+        }
+
+        .music-artist {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #777;
+        }
+
+        .music-key {
+            background: rgba(255, 49, 49, 0.1);
+            color: var(--red-vibrant);
+            border: 1px solid rgba(255, 49, 49, 0.3);
+            min-width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 1rem;
+            text-transform: uppercase;
+        }
+
+        @keyframes reveal { to { opacity: 1; transform: translateY(0); } }
+
+        .status-msg { text-align: center; padding: 60px 20px; color: var(--red-vibrant); }
+    </style>
+</head>
+<body>
+
+    <main class="container">
+        <a href="index.html" class="back-link"><i class="ph-bold ph-arrow-left"></i> Voltar</a>
+
+        <header>
+            <h1>Nosso <span>repertório</span></h1>
+            <div class="stats" id="counter">Sincronizando...</div>
+        </header>
+
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Pesquisar música..." onkeyup="filterMusic()">
+        </div>
+
+        <div id="status" class="status-msg">
+            <i class="ph ph-circle-notch ph-spin" style="font-size: 2rem;"></i>
+        </div>
+
+        <div id="repertorio-container"></div>
+    </main>
+
+    <script>
+        // NOVO LINK CONFIGURADO
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSizqPkVTsNhcYVBOOZLtB2DvYCy1BoYvJ7m5JmC1CKYOBnH12hfKfgCy45T3iTAtyy-9ezUaD7zdpf/pub?gid=1767677527&single=true&output=csv';
+        const PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(CSV_URL)}`;
+
+        async function fetchRepertorio() {
+            try {
+                const response = await fetch(PROXY);
+                const json = await response.json();
+                let rawData = json.contents;
+
+                if (rawData.includes('base64,')) {
+                    rawData = decodeURIComponent(escape(window.atob(rawData.split('base64,')[1])));
+                }
+
+                const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
+                const delimiter = rows[0].includes(';') ? ';' : ',';
+                const container = document.getElementById('repertorio-container');
+                
+                container.innerHTML = "";
+                let count = 0;
+
+                for (let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].split(delimiter).map(c => c.replace(/"/g, '').trim());
+                    
+                    if (cols.length >= 2) {
+                        const titulo = cols[0] || "Sem Nome";
+                        const tom = cols[1] || "-"; // Assume que o Tom é a terceira coluna
+                        count++;
+
+                        const card = document.createElement('div');
+                        card.className = 'music-card';
+                        card.style.animation = `reveal 0.4s ease forwards ${i * 0.03}s`;
+                        
+                        card.innerHTML = `
+                            <div class="music-main">
+                                <span class="music-title">${titulo}</span>
+                            </div>
+                            <div class="music-key">${tom}</div>
+                        `;
+                        container.appendChild(card);
+                    }
+                }
+                
+                document.getElementById('counter').innerText = `${count} músicas catalogadas`;
+                document.getElementById('status').style.display = 'none';
+
+            } catch (e) {
+                document.getElementById('status').innerHTML = "Erro de conexão.";
+            }
+        }
+
+        function filterMusic() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.getElementsByClassName('music-card');
+            let visibleCount = 0;
+
+            for (let card of cards) {
+                const text = card.textContent.toLowerCase();
+                if (text.includes(input)) {
+                    card.style.display = "flex";
+                    visibleCount++;
+                } else {
+                    card.style.display = "none";
+                }
+            }
+            document.getElementById('counter').innerText = `${visibleCount} encontradas`;
+        }
+
+        window.onload = fetchRepertorio;
+    </script>
+</body>
+</html>
