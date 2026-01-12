@@ -7,7 +7,7 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
+
     <link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
     <link rel="stylesheet" href="style.css">
 </head>
@@ -18,13 +18,14 @@
     <header data-aos="fade-down">
         <div class="logo">
             <i class="ph-fill ph-waveform"></i>
-            <h1>Pib Aldmar</span></h1>
+            <h1>Pib Aldmar</h1>
         </div>
         <p>Ministério de Louvor</p>
     </header>
 
     <main class="container">
         <nav class="menu-grid">
+
             <a href="cifras.html" class="card" data-aos="zoom-in" data-aos-delay="100">
                 <div class="icon-box"><i class="ph ph-guitar"></i></div>
                 <span>Cifras</span>
@@ -59,6 +60,7 @@
                 <div class="icon-box"><i class="ph ph-playlist"></i></div>
                 <span>Repertório</span>
             </a>
+
         </nav>
     </main>
 
@@ -67,6 +69,45 @@
     </footer>
 
     <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
-    <script src="script.js"></script>
+
+    <script>
+        AOS.init({ once: true });
+
+        /* ===============================
+           PRÉ-CARREGAMENTO DE CSV
+        =============================== */
+
+        const CSV_PRELOAD = {
+            letras: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7lFkME7EB9I5mQkAz3LuzMwL6mDdT4gWBh_rmGhasp-_KoZUkZAW1kF1cqatTDsLUE8yKCV2j7UP_/pub?gid=365269969&single=true&output=csv',
+            escala: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSizqPkVTsNhcYVBOOZLtB2DvYCy1BoYvJ7m5JmC1CKYOBnH12hfKfgCy45T3iTAtyy-9ezUaD7zdpf/pub?gid=774324351&single=true&output=csv'
+        };
+
+        const CACHE_TTL = 1000 * 60 * 10; // 10 minutos
+
+        async function preloadCSV(key, url) {
+            try {
+                const last = localStorage.getItem(`csv_${key}_time`);
+                if (last && Date.now() - last < CACHE_TTL) return;
+
+                const response = await fetch(url, { cache: "no-store" });
+                if (!response.ok) return;
+
+                const data = await response.text();
+                if (data && data.trim() !== "") {
+                    localStorage.setItem(`csv_${key}`, data);
+                    localStorage.setItem(`csv_${key}_time`, Date.now());
+                }
+            } catch (e) {
+                console.warn(`Pré-carregamento falhou: ${key}`);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            Object.entries(CSV_PRELOAD).forEach(([key, url]) => {
+                preloadCSV(key, url);
+            });
+        });
+    </script>
+
 </body>
 </html>
