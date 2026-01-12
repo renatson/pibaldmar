@@ -1,252 +1,108 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pib Aldmar | Letras</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <style>
-        :root {
-            --bg-deep: #080808;
-            --red-vibrant: #FF3131;
-            --white-pure: #FFFFFF;
-            --card-bg: rgba(255, 255, 255, 0.04);
-            --card-border: rgba(255, 255, 255, 0.08);
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7lFkME7EB9I5mQkAz3LuzMwL6mDdT4gWBh_rmGhasp-_KoZUkZAW1kF1cqatTDsLUE8yKCV2j7UP_/pub?gid=365269969&single=true&output=csv';
+
+async function fetchCifras() {
+    const status = document.getElementById('status');
+    const container = document.getElementById('cifras-container');
+
+    try {
+        const response = await fetch(CSV_URL, { cache: "no-store" });
+
+        if (!response.ok) {
+            throw new Error("Erro ao acessar a planilha");
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
-        body { 
-            background-color: var(--bg-deep); 
-            color: var(--white-pure); 
-            font-family: 'Inter', sans-serif; 
-            overflow-x: hidden; 
+        const rawData = await response.text();
+
+        if (!rawData || rawData.trim() === "") {
+            throw new Error("Planilha vazia");
         }
 
-        .container { max-width: 500px; margin: 0 auto; padding: 40px 20px; }
-
-        /* Navegação */
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: #666;
-            text-decoration: none;
-            font-size: 0.8rem;
-            font-weight: 800;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-            transition: 0.3s;
-        }
-        .back-link:hover { color: var(--red-vibrant); }
-
-        /* Header */
-        header { margin-bottom: 30px; }
-        header h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -1.5px; line-height: 1; }
-        header h1 span { color: var(--red-vibrant); }
-
-        /* Barra de Busca */
-        .search-container { 
-            position: sticky; top: 20px; z-index: 90; margin-bottom: 25px; 
-        }
-        .search-container input {
-            width: 100%;
-            background: rgba(20, 20, 20, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--card-border);
-            padding: 16px 20px;
-            border-radius: 15px;
-            color: #fff;
-            font-family: inherit;
-            outline: none;
-            transition: 0.3s;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        .search-container input:focus { border-color: var(--red-vibrant); background: #151515; }
-
-        #cifras-container { display: flex; flex-direction: column; gap: 12px; }
-
-        /* Card de Letra */
-        .cifra-card {
-            background: var(--card-bg); 
-            border: 1px solid var(--card-border);
-            border-radius: 20px; 
-            padding: 22px 25px; 
-            display: flex; 
-            align-items: center;
-            justify-content: space-between; 
-            cursor: pointer; 
-            transition: all 0.2s ease;
-            opacity: 0; 
-            transform: translateY(15px);
+        const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
+        if (rows.length <= 1) {
+            status.innerText = "Nenhuma letra encontrada.";
+            return;
         }
 
-        .cifra-card:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.08); }
+        const delimiter = rows[0].includes(';') ? ';' : ',';
+        container.innerHTML = "";
 
-        .song-info { display: flex; align-items: center; gap: 15px; }
-        
-        .icon-box {
-            width: 40px; height: 40px;
-            background: rgba(255, 49, 49, 0.1);
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            color: var(--red-vibrant);
-            font-size: 1.2rem;
-        }
+        for (let i = 1; i < rows.length; i++) {
+            const cols = rows[i]
+                .split(delimiter)
+                .map(c => c.replace(/"/g, '').trim());
 
-        .song-title { font-size: 1.1rem; font-weight: 700; color: #eee; }
+            if (cols.length >= 2) {
+                const titulo = cols[0];
+                const link = cols[1];
 
-        /* MODAL DE LEITURA (VIEWER) */
-        #cifraModal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 9999;
-            display: none; flex-direction: column;
-        }
-        
-        .modal-header {
-            padding: 15px 20px; display: flex; align-items: center; justify-content: space-between;
-            background: #111; border-bottom: 1px solid #222;
-        }
-        
-        .modal-title { font-weight: 800; color: var(--red-vibrant); font-size: 0.9rem; text-transform: uppercase; }
-        
-        .close-btn { 
-            background: var(--red-vibrant); border: none; color: #fff; 
-            width: 35px; height: 35px; border-radius: 10px; cursor: pointer; 
-            display: flex; align-items: center; justify-content: center;
-        }
-        
-        .modal-body { flex: 1; width: 100%; background: #1a1a1a; position: relative; }
-        
-        /* Iframe ocupa tudo e remove bordas brancas */
-        iframe { width: 100%; height: 100%; border: none; display: block; }
+                if (!titulo || !link) continue;
 
-        @keyframes reveal { to { opacity: 1; transform: translateY(0); } }
-        
-        .status-msg { text-align: center; padding: 40px; color: #666; font-size: 0.9rem; }
-    </style>
-</head>
-<body>
+                const card = document.createElement('div');
+                card.className = 'cifra-card';
+                card.style.animation = `reveal 0.4s ease forwards ${i * 0.04}s`;
+                card.onclick = () => openViewer(titulo, link);
 
-    <main class="container">
-        <a href="index.html" class="back-link"><i class="ph-bold ph-arrow-left"></i> Voltar</a>
+                card.innerHTML = `
+                    <div class="song-info">
+                        <div class="icon-box">
+                            <i class="ph ph-article-ny-times"></i>
+                        </div>
+                        <span class="song-title">${titulo}</span>
+                    </div>
+                    <i class="ph-bold ph-caret-right" style="color: #666;"></i>
+                `;
 
-        <header>
-            <h1>Letras <span>registradas</span></h1>
-        </header>
-
-        <div class="search-container">
-            <input type="text" id="searchInput" placeholder="Qual letra você procura?" onkeyup="filterCifras()">
-        </div>
-
-        <div id="status" class="status-msg">
-            <i class="ph ph-circle-notch ph-spin" style="font-size: 2rem; color: var(--red-vibrant);"></i>
-        </div>
-
-        <div id="cifras-container"></div>
-    </main>
-
-    <div id="cifraModal">
-        <div class="modal-header">
-            <span id="currentTitle" class="modal-title">Visualizando Letra</span>
-            <button class="close-btn" onclick="closeModal()"><i class="ph-bold ph-x"></i></button>
-        </div>
-        <div class="modal-body" id="modalBody"></div>
-    </div>
-
-    <script>
-        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7lFkME7EB9I5mQkAz3LuzMwL6mDdT4gWBh_rmGhasp-_KoZUkZAW1kF1cqatTDsLUE8yKCV2j7UP_/pub?gid=365269969&single=true&output=csv';
-        const PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(CSV_URL)}`;
-
-        async function fetchCifras() {
-            try {
-                const response = await fetch(PROXY);
-                const json = await response.json();
-                let rawData = json.contents;
-
-                if (rawData.includes('base64,')) {
-                    rawData = decodeURIComponent(escape(window.atob(rawData.split('base64,')[1])));
-                }
-
-                const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
-                const delimiter = rows[0].includes(';') ? ';' : ',';
-                const container = document.getElementById('cifras-container');
-                
-                container.innerHTML = "";
-
-                for (let i = 1; i < rows.length; i++) {
-                    const cols = rows[i].split(delimiter).map(c => c.replace(/"/g, '').trim());
-                    
-                    if (cols.length >= 2) {
-                        const titulo = cols[0];
-                        const link = cols[1];
-
-                        const card = document.createElement('div');
-                        card.className = 'cifra-card';
-                        card.style.animation = `reveal 0.4s ease forwards ${i * 0.04}s`;
-                        card.onclick = () => openViewer(titulo, link);
-                        
-                        card.innerHTML = `
-                            <div class="song-info">
-                                <div class="icon-box"><i class="ph ph-article-ny-times"></i></div>
-                                <span class="song-title">${titulo}</span>
-                            </div>
-                            <i class="ph-bold ph-caret-right" style="color: #666;"></i>
-                        `;
-                        container.appendChild(card);
-                    }
-                }
-                document.getElementById('status').style.display = 'none';
-
-            } catch (e) {
-                document.getElementById('status').innerText = "Erro ao carregar dados.";
+                container.appendChild(card);
             }
         }
 
-        // --- LÓGICA DE VISUALIZAÇÃO SEM DOWNLOAD ---
-        function openViewer(title, url) {
-            document.getElementById('currentTitle').innerText = title;
-            const modal = document.getElementById('cifraModal');
-            const body = document.getElementById('modalBody');
-            
-            let finalUrl = url;
-            let fileId = null;
+        status.style.display = 'none';
 
-            // 1. Tenta extrair o ID do arquivo
-            const match = url.match(/\/d\/(.+?)\/|id=(.+?)(\&|$)/);
+    } catch (e) {
+        console.error(e);
+        status.innerText = "Erro ao carregar as letras. Atualize a página.";
+    }
+}
 
-            if (match) {
-                fileId = match[1] || match[2];
-                // 2. Monta o link com /preview
-                // Isso força o Drive a abrir o "Player" de documento, e não o arquivo cru
-                finalUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-            }
+// ---- VISUALIZADOR ----
+function openViewer(title, url) {
+    document.getElementById('currentTitle').innerText = title;
+    const modal = document.getElementById('cifraModal');
+    const body = document.getElementById('modalBody');
 
-            // O preview do Google Drive é amigável para Iframe e não força download
-            body.innerHTML = `<iframe src="${finalUrl}" allow="autoplay"></iframe>`;
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
+    let finalUrl = url;
+    let fileId = null;
 
-        function closeModal() {
-            document.getElementById('cifraModal').style.display = 'none';
-            document.getElementById('modalBody').innerHTML = "";
-            document.body.style.overflow = 'auto';
-        }
+    const match = url.match(/\/d\/(.+?)\/|id=(.+?)(\&|$)/);
 
-        function filterCifras() {
-            const input = document.getElementById('searchInput').value.toLowerCase();
-            const cards = document.getElementsByClassName('cifra-card');
-            
-            for (let card of cards) {
-                card.style.display = card.innerText.toLowerCase().includes(input) ? "flex" : "none";
-            }
-        }
+    if (match) {
+        fileId = match[1] || match[2];
+        finalUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+    }
 
-        window.onload = fetchCifras;
-    </script>
-</body>
-</html>
+    body.innerHTML = `<iframe src="${finalUrl}" allow="autoplay"></iframe>`;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+    document.getElementById('cifraModal').style.display = 'none';
+    document.getElementById('modalBody').innerHTML = "";
+    document.body.style.overflow = 'auto';
+}
+
+// ---- FILTRO ----
+function filterCifras() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    const cards = document.getElementsByClassName('cifra-card');
+
+    for (let card of cards) {
+        card.style.display = card.innerText.toLowerCase().includes(input)
+            ? "flex"
+            : "none";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", fetchCifras);
+</script>
