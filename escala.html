@@ -1,234 +1,55 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pib Aldmar | Escala atual</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <style>
-        :root {
-            --bg-deep: #080808;
-            --red-vibrant: #FF3131;
-            --white-pure: #FFFFFF;
-            --card-border: rgba(255, 255, 255, 0.1);
+<script>
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSizqPkVTsNhcYVBOOZLtB2DvYCy1BoYvJ7m5JmC1CKYOBnH12hfKfgCy45T3iTAtyy-9ezUaD7zdpf/pub?gid=774324351&single=true&output=csv';
+let dateColumnIndex = 0;
+
+async function init() {
+    try {
+        const response = await fetch(SHEET_URL, { cache: "no-store" });
+
+        if (!response.ok) {
+            throw new Error("Erro ao acessar planilha");
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color: var(--bg-deep); color: var(--white-pure); font-family: 'Inter', sans-serif; min-height: 100vh; }
+        const rawData = await response.text();
 
-        .container { max-width: 100%; margin: 0 auto; padding: 20px 15px; }
-
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--white-pure);
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 20px;
-            text-transform: uppercase;
+        if (!rawData || rawData.trim() === "") {
+            throw new Error("Planilha vazia");
         }
 
-        /* Seção do Filtro de Calendário */
-        .filter-container {
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
+        const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
+        if (rows.length <= 1) {
+            document.getElementById('status').innerHTML = "Nenhum dado encontrado.";
+            return;
         }
 
-        .filter-label {
-            font-size: 0.75rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            color: var(--red-vibrant);
-            letter-spacing: 1px;
-        }
+        const delimiter = rows[0].includes(';') ? ';' : ',';
+        const headers = rows[0].split(delimiter).map(h => h.replace(/"/g, '').trim());
 
-        .calendar-wrapper {
-            display: flex;
-            gap: 10px;
-        }
+        dateColumnIndex = headers.findIndex(h => h.toUpperCase().includes("DATA"));
+        if (dateColumnIndex === -1) dateColumnIndex = 0;
 
-        input[type="date"] {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--red-vibrant);
-            color: #fff;
-            padding: 12px;
-            border-radius: 12px;
-            font-family: inherit;
-            font-size: 1rem;
-            outline: none;
-            color-scheme: dark; /* Torna o ícone do calendário branco/visível */
-        }
+        document.getElementById('tableHead').innerHTML =
+            `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
 
-        .btn-clear {
-            background: var(--card-border);
-            border: none;
-            color: #fff;
-            padding: 0 15px;
-            border-radius: 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Tabela */
-        .table-wrapper {
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 16px;
-            border: 1px solid var(--card-border);
-            overflow: hidden;
-        }
-
-        .scroll-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-        th { background-color: var(--red-vibrant); color: #000; padding: 12px 15px; text-align: left; font-weight: 800; }
-        td { padding: 12px 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); white-space: nowrap; }
-
-        @keyframes pulse-highlight {
-            0% { background: rgba(255, 49, 49, 0.1); }
-            50% { background: rgba(255, 49, 49, 0.35); }
-            100% { background: rgba(255, 49, 49, 0.1); }
-        }
-
-        .highlight-row td {
-            font-weight: 800;
-            animation: pulse-highlight 2s infinite ease-in-out;
-            border-bottom: 1px solid var(--red-vibrant) !important;
-        }
-
-        .status-msg { text-align: center; padding: 50px; color: var(--red-vibrant); }
-    </style>
-</head>
-<body>
-
-    <main class="container">
-        <a href="index.html" class="back-link"><i class="ph ph-arrow-left"></i> Menu</a>
-
-        <header style="margin-bottom: 20px;">
-            <h1 style="font-size: 1.5rem; font-weight: 800;">ESCALA<span> ATUAL</span></h1>
-        </header>
-
-        <div class="filter-container">
-            <span class="filter-label">Selecionar Data do Culto:</span>
-            <div class="calendar-wrapper">
-                <input type="date" id="dateInput" onchange="filterByCalendar()">
-                <button class="btn-clear" onclick="clearFilter()"><i class="ph ph-x"></i></button>
-            </div>
-        </div>
-
-        <div class="table-wrapper">
-            <div id="status" class="status-msg">
-                <i class="ph ph-circle-notch ph-spin" style="font-size: 2rem;"></i>
-                <p>Carregando...</p>
-            </div>
-            
-            <div class="scroll-container">
-                <table id="escalaTable" style="display: none;">
-                    <thead id="tableHead"></thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSizqPkVTsNhcYVBOOZLtB2DvYCy1BoYvJ7m5JmC1CKYOBnH12hfKfgCy45T3iTAtyy-9ezUaD7zdpf/pub?gid=774324351&single=true&output=csv';
-        const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(SHEET_URL)}`;
-        let dateColumnIndex = 0;
-
-        async function init() {
-            try {
-                const response = await fetch(PROXY_URL);
-                const json = await response.json();
-                let rawData = json.contents;
-
-                if (rawData.includes('base64,')) {
-                    rawData = decodeURIComponent(escape(window.atob(rawData.split('base64,')[1])));
-                }
-
-                const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
-                const delimiter = rows[0].includes(';') ? ';' : ',';
-                const headers = rows[0].split(delimiter).map(h => h.replace(/"/g, '').trim());
-                
-                dateColumnIndex = headers.findIndex(h => h.toUpperCase().includes("DATA"));
-                if(dateColumnIndex === -1) dateColumnIndex = 0;
-
-                document.getElementById('tableHead').innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-
-                let bodyHtml = '';
-                for (let i = 1; i < rows.length; i++) {
-                    const cells = rows[i].split(delimiter);
-                    if(cells.length >= headers.length) {
-                        bodyHtml += `<tr>${cells.map(c => `<td>${c.replace(/"/g, '')}</td>`).join('')}</tr>`;
-                    }
-                }
-                document.getElementById('tableBody').innerHTML = bodyHtml;
-                document.getElementById('status').style.display = 'none';
-                document.getElementById('escalaTable').style.display = 'table';
-
-                highlightNextScale();
-            } catch (e) {
-                document.getElementById('status').innerHTML = "Erro ao carregar dados.";
+        let bodyHtml = '';
+        for (let i = 1; i < rows.length; i++) {
+            const cells = rows[i].split(delimiter);
+            if (cells.length >= headers.length) {
+                bodyHtml += `<tr>${cells.map(c => `<td>${c.replace(/"/g, '')}</td>`).join('')}</tr>`;
             }
         }
 
-        function filterByCalendar() {
-            const inputDate = document.getElementById('dateInput').value; // Formato YYYY-MM-DD
-            if (!inputDate) return;
+        document.getElementById('tableBody').innerHTML = bodyHtml;
+        document.getElementById('status').style.display = 'none';
+        document.getElementById('escalaTable').style.display = 'table';
 
-            const [year, month, day] = inputDate.split('-');
-            const formattedDate = `${day}/${month}`; // Formato esperado na tabela (ex: 25/12)
+        highlightNextScale();
+    } catch (e) {
+        document.getElementById('status').innerHTML =
+            "Erro ao carregar dados. Tente atualizar a página.";
+        console.error(e);
+    }
+}
 
-            const trs = document.getElementById("tableBody").getElementsByTagName("tr");
-            for (let i = 0; i < trs.length; i++) {
-                const td = trs[i].getElementsByTagName("td")[dateColumnIndex];
-                if (td) {
-                    const txtValue = td.textContent || td.innerText;
-                    // Verifica se a data selecionada está contida na célula (ex: "25/12/2025" contém "25/12")
-                    trs[i].style.display = txtValue.includes(formattedDate) ? "" : "none";
-                }
-            }
-        }
-
-        function clearFilter() {
-            document.getElementById('dateInput').value = "";
-            const trs = document.getElementById("tableBody").getElementsByTagName("tr");
-            for (let i = 0; i < trs.length; i++) trs[i].style.display = "";
-        }
-
-        function highlightNextScale() {
-            const trs = document.querySelectorAll("#tableBody tr");
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            let closestRow = null; let minDiff = Infinity;
-
-            trs.forEach(row => {
-                const parts = row.cells[dateColumnIndex].innerText.split('/');
-                if(parts.length >= 2) {
-                    const d = parseInt(parts[0]); const m = parseInt(parts[1]) - 1;
-                    const y = parts[2] ? parseInt(parts[2]) : today.getFullYear();
-                    const rowDate = new Date(y, m, d);
-                    const diff = rowDate - today;
-                    if (diff >= 0 && diff < minDiff) { minDiff = diff; closestRow = row; }
-                }
-            });
-
-            if (closestRow) {
-                closestRow.classList.add('highlight-row');
-                setTimeout(() => closestRow.scrollIntoView({ behavior: 'smooth', block: 'center' }), 500);
-            }
-        }
-
-        window.onload = init;
-    </script>
-</body>
-</html>
+document.addEventListener("DOMContentLoaded", init);
+</script>
