@@ -1,55 +1,104 @@
 <script>
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSizqPkVTsNhcYVBOOZLtB2DvYCy1BoYvJ7m5JmC1CKYOBnH12hfKfgCy45T3iTAtyy-9ezUaD7zdpf/pub?gid=774324351&single=true&output=csv';
+const PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent(SHEET_URL)}`;
+
+const CACHE_KEY = 'escala_csv_cache';
+const CACHE_TIME_KEY = 'escala_csv_cache_time';
+const CACHE_TTL = 1000 * 60 * 60 * 12; // 12 horas
+
 let dateColumnIndex = 0;
 
-async function init() {
+/* ---------------- CACHE ---------------- */
+
+function getCachedData() {
+    const cached = localStorage.getItem(CACHE_KEY);
+    const time = localStorage.getItem(CACHE_TIME_KEY);
+
+    if (!cached || !time) return null;
+    if (Date.now() - Number(time) > CACHE_TTL) return null;
+
+    return cached;
+}
+
+function saveCache(data) {
+    localStorage.setItem(CACHE_KEY, data);
+    localStorage.setItem(CACHE_TIME_KEY, Date.now());
+}
+
+/* ---------------- FETCH ---------------- */
+
+async function loadCSV() {
+    const cached = getCachedData();
+
+    if (cached) {
+        buildTable(cached);
+        return;
+    }
+
     try {
-        const response = await fetch(SHEET_URL, { cache: "no-store" });
+        const response = await fetch(PROXY);
+        if (!response.ok) throw new Error("Erro ao buscar planilha");
 
-        if (!response.ok) {
-            throw new Error("Erro ao acessar planilha");
-        }
-
-        const rawData = await response.text();
+        const json = await response.json();
+        let rawData = json.contents;
 
         if (!rawData || rawData.trim() === "") {
             throw new Error("Planilha vazia");
         }
 
-        const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
-        if (rows.length <= 1) {
-            document.getElementById('status').innerHTML = "Nenhum dado encontrado.";
-            return;
-        }
+        saveCache(rawData);
+        buildTable(rawData);
 
-        const delimiter = rows[0].includes(';') ? ';' : ',';
-        const headers = rows[0].split(delimiter).map(h => h.replace(/"/g, '').trim());
-
-        dateColumnIndex = headers.findIndex(h => h.toUpperCase().includes("DATA"));
-        if (dateColumnIndex === -1) dateColumnIndex = 0;
-
-        document.getElementById('tableHead').innerHTML =
-            `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
-
-        let bodyHtml = '';
-        for (let i = 1; i < rows.length; i++) {
-            const cells = rows[i].split(delimiter);
-            if (cells.length >= headers.length) {
-                bodyHtml += `<tr>${cells.map(c => `<td>${c.replace(/"/g, '')}</td>`).join('')}</tr>`;
-            }
-        }
-
-        document.getElementById('tableBody').innerHTML = bodyHtml;
-        document.getElementById('status').style.display = 'none';
-        document.getElementById('escalaTable').style.display = 'table';
-
-        highlightNextScale();
     } catch (e) {
-        document.getElementById('status').innerHTML =
-            "Erro ao carregar dados. Tente atualizar a página.";
-        console.error(e);
+        console.warn("Falha online, tentando cache...", e);
+
+        if (cached) {
+            buildTable(cached);
+        } else {
+            document.getElementById('status').innerHTML =
+                "Erro ao carregar dados. Tente novamente mais tarde.";
+        }
     }
 }
 
-document.addEventListener("DOMContentLoaded", init);
+/* ---------------- RENDER ---------------- */
+
+function buildTable(rawData) {
+    const rows = rawData.split(/\r?\n/).filter(r => r.trim() !== "");
+
+    if (rows.length <= 1) {
+        document.getElementById('status').innerHTML = "Nenhum dado encontrado.";
+        return;
+    }
+
+    const delimiter = rows[0].includes(';') ? ';' : ',';
+    const headers = rows[0].split(delimiter).map(h => h.replace(/"/g, '').trim());
+
+    dateColumnIndex = headers.findIndex(h => h.toUpperCase().includes("DATA"));
+    if (dateColumnIndex === -1) dateColumnIndex = 0;
+
+    document.getElementById('tableHead').innerHTML =
+        `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+
+    let bodyHtml = '';
+    for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].split(delimiter);
+        if (cells.length >= headers.length) {
+            bodyHtml += `<tr>${cells.map(c => `<td>${c.replace(/"/g, '')}</td>`).join('')}</tr>`;
+        }
+    }
+
+    document.getElementById('tableBody').innerHTML = bodyHtml;
+    document.getElementById('status').style.display = 'none';
+    document.getElementById('escalaTable').style.display = 'table';
+
+    if (typeof highlightNextScale === "function") {
+        highlightNextScale();
+    }
+}
+
+/* ---------------- INIT ---------------- */
+
+document.addEventListener("DOMContentLoaded", loadCSV);
 </script>
+
